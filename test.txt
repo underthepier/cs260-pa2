@@ -1,0 +1,7 @@
+friends 1336
+economy 60
+pawn 42
+unfair 73
+henlo 20
+Â¶ 10
+

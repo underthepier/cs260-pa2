@@ -10,9 +10,9 @@ typedef struct item{
   int weight;
 }Item;
 
-void mergeSort(Item **array, int n);
-void mergeSortRec(Item **array, int start, int stop);
-void merge(Item **array, int start, int middle, int stop);
+void mergeSort(Item **array, int n, int sort_type);
+void mergeSortRec(Item **array, int start, int stop, int sort_type);
+void merge(Item **array, int start, int middle, int stop, int sort_type);
 
 int main(int argc, char **argv) {
     char *dictionaryFilePath = argv[1]; //this keeps the path to dictionary file
@@ -49,15 +49,14 @@ int main(int argc, char **argv) {
     /////////////////PAY ATTENTION HERE/////////////////
     //This might be a good place to allocate memory for your data structure, by the size of "wordCount"
     ////////////////////////////////////////////////////
-
     Item **words;
     words = (Item **)malloc(sizeof(*words) * wordCount);
     for(int i = 0; i < wordCount; i++)
         {
             words[i] = (Item *)malloc(sizeof(Item));
-           // printf("%p\n", words[i]);
+        //    printf("%p\n", words[i]);
         }
-    
+
     // //Read the file once more, this time to fill in the data into memory
     fseek(fp, 0, SEEK_SET); // rewind to the beginning of the file, before reading it line by line.
     char word[BUFSIZE]; //to be used for reading lines in the loop below
@@ -75,7 +74,7 @@ int main(int argc, char **argv) {
         ////////////////////////////////////////////////////
 
         //Copy the word into Item
-        size_t word_size = sizeof(Item*) * strlen(word);
+        size_t word_size = sizeof(char) * strlen(word);
         // printf("%ld\n", word_size);
 
         words[i]->word = malloc(word_size + 1);
@@ -89,6 +88,7 @@ int main(int argc, char **argv) {
     
     //close the input file
     fclose(fp);
+ 
 
     ////////////////////////////////////////////////////////////////////////
     ///////////////////////// read query list file /////////////////////////
@@ -142,26 +142,49 @@ int main(int argc, char **argv) {
     //loop through the query words and list suggestions for each query word if there are any
     //don't forget to free the memory before you quit the program!
 
-    //To facilitate quick lookups, allocate memory to store the indices in "words" that correspond to the first instance of a string beginning with a specific char (e.g. strings starting with a 'b' start at index i in "words"). "locations" will store from '!' to 'z' in ascii (inclusive). locations[0] corresponds to '!' and locations[89] corresponds to 'z'.
-    int *locations = malloc(sizeof(*locations)*90);
+    /*To facilitate quick lookups, 
+    allocate memory to store the indices in "words" 
+    that correspond to where strings beginning with a specific char start
+    (e.g. strings starting with a 'b' start at index i in "words"). "locations" will store from '!' to 'z' in ascii (inclusive). 
+    locations[0] corresponds to '!' and locations[89] corresponds to 'z'
+    locations[90] corresponds to 'Â', locations[91] corresponds to '¶' */
+    int num_locations = 92;
+    int *locations = malloc(sizeof(*locations)*num_locations);
 
     //initialize locations with -1 to indicate that no word beginning with a specific char exists
-    for(int i = 0; i < 90; i++)
+    for(int i = 0; i < num_locations; i++)
         locations[i] = -1;
 
-    mergeSort(words, wordCount);
+    //wordCount--;
+    //Sort words by including 0
+    //printf("before merge\n");
+    mergeSort(words, wordCount, 0);
+    //printf("after merge\n");
+
+    // for(int i = 0; i < wordCount; i++)
+    //     printf("%d - %s\n",i, words[i]->word);
+    // printf("Word count - %d\n", wordCount);
+
 
     //Find where strings that begin with a specific char start in "words" and store the index in "locations"
     int location; //The index in "locations" to check
     for(int i = 0; i < wordCount; i++)
     {
-        location = (words[i]->word[0] - 33);
+        //Check for special characters
+        if(words[i]->word[0] == -61) // 'Â'
+            location = 90;
+        else if(words[i]->word[0] == -62) // '¶'
+            location = 91;
+        else
+        {
+            // printf("here\n");
+            //printf("%s\n", words[i]->word);
+            location = (words[i]->word[0] - 33);
+        }
         
         if(locations[location] == -1)
             locations[location] = i;
     }
-
-
 
     //OUTPUT SPECS:
     // use the following if no word to suggest: printf("No suggestion!\n");
@@ -171,13 +194,21 @@ int main(int argc, char **argv) {
 
     //for query in queries
     int j, start, end;
-    char query_compare[50]; //buffer to compare queries with dictionary words
+    char query_compare[40]; //buffer to compare queries with dictionary words
     size_t query_len;
     
     for(int i = 0; i < queryCount; i++)
     {    
+        printf("Query word:%s\n", queries[i]);        
         //Search from words[locations[queries[i][0] - 33]] to words[locations[queries[i][0] - 33 + 1]] (or the next position)
         j = ((int)queries[i][0]) - 33;
+
+        if(locations[j] == -1)
+        {
+            printf("No suggestion!\n");
+            continue;
+        }
+        
         start = locations[j];
         j++;
         
@@ -187,32 +218,66 @@ int main(int argc, char **argv) {
 
         end = locations[j];
 
-        //Allocate memory to store the indices of the matches
-        int *matches = malloc(sizeof(*matches) * (end-start+1));
+        //Allocate memory for the suggestions
+        int num_matches = end-start+1;
+        Item **matches; 
+        matches = (Item **)malloc(sizeof(*matches) * num_matches);
+
+        for(int n = 0; n < num_matches; n++)
+        {
+            matches[n] = (Item *)malloc(sizeof(Item));
+        }
 
         j = 0;
-        
         //Loop through the range and find the suggested words
         for(int k = start; k < end; k++)
         {
-            query_len = strlen(queries[i]);   
-            strncpy(query_compare, words[k]->word, query_len);
+            query_len = strlen(queries[i]);
+            strncpy(query_compare, words[k]->word, query_len);         
+            
             query_compare[query_len] = '\0';
 
             if(strcmp(queries[i], query_compare) == 0)
-            {
-                matches[j] = k;
+            {   
+                //Store the suggestion
+                matches[j]->word = words[k]->word;
+                matches[j]->weight = words[k]->weight;
+                //printf("query: %s suggestion: %s\n", queries[i], matches[j]->word);
+
                 j++;
             }
-            
+
         }
+        //Sort the suggestions in descending order of weight (specified by 1); max 10 suggestions          
+        mergeSort(matches, j, 1);
+      
+        if(j > 10)
+        {
+            for(int l = 0; l < 10; l++)
+            {
+                printf("%s %d\n", matches[l]->word, matches[l]->weight);
+            }
+        }
+        else if(j==0)
+        {
+            printf("No suggestion!\n");
+        }
+        else
+        {
+            for(int l = 0; l < j; l++)
+            {
+                printf("%s %d\n", matches[l]->word, matches[l]->weight);
+            }            
+        }
+
+        for(int n = 0; n < num_matches; n++)
+        {
+            free(matches[n]);
+        }  
         
-        //Store the indices of all the suggestions
-        
-        //Sort the suggestions in descending order of weight; max 10 suggestions
     }
 
-    printf("complete\n");
+   // printf("Freeing words\n");
     //Free memory
     for(int i = 0; i < wordCount-1; i++)
     {
@@ -220,22 +285,27 @@ int main(int argc, char **argv) {
         free(words[i]->word);
         free(words[i]);        
     }
-    free(words[wordCount]); //free the item that stores the "infinity string"
 
+   // printf("Freeing words infinity\n");
+    //printf("%s %d\n",words[wordCount]->word,words[wordCount]->weight);
+    // free(words[wordCount]); //free the item that stores the "infinity string"
+
+    //printf("Freeing queries\n");
     for(int i = 0; i < queryCount; i++)
         free(queries[i]);
 
+    //printf("Freeing locations\n");
     free(locations);
-
+    //printf("complete\n");
     return 0;
 }
 
-void mergeSort(Item **array, int n)
+void mergeSort(Item **array, int n, int sort_type)
 {
-  mergeSortRec(array, 0, n-1);
+  mergeSortRec(array, 0, n-1, sort_type);
 }
 
-void mergeSortRec(Item **array, int start, int stop)
+void mergeSortRec(Item **array, int start, int stop, int sort_type)
 {
 
   if(start >= stop)
@@ -243,22 +313,21 @@ void mergeSortRec(Item **array, int start, int stop)
 
   int middle;
   middle = start + floor((stop - start) / 2);
-  mergeSortRec(array, start, middle);
-  mergeSortRec(array, middle + 1, stop);
-  merge(array, start, middle, stop);
+  mergeSortRec(array, start, middle, sort_type);
+  mergeSortRec(array, middle + 1, stop, sort_type);
+  merge(array, start, middle, stop, sort_type);
+
 }
 
-void merge(Item **array, int start, int middle, int stop)
+void merge(Item **array, int start, int middle, int stop, int sort_type)
 {
-
     int a_length = (middle+1) - start;
     int b_length = stop - middle;
     int i;
     int j;
     
-    //Represent infinity for merge sort as the highest ascii value character unlikely to be used in a word
-    char *inf = "~~~~~";
-
+    //Represent infinity for merge sort as a high ascii value character unlikely to be used in a word
+    char *inf = "éé";
     
     //Initialize lists
     Item **a;
@@ -269,7 +338,6 @@ void merge(Item **array, int start, int middle, int stop)
          a[i] = (Item *)malloc(sizeof(Item));    
     }
     
-    
     Item **b;
     b = (Item **)malloc((sizeof(*b) * b_length) + 1);
     for(i = 0; i < (b_length+1); i++)
@@ -277,7 +345,6 @@ void merge(Item **array, int start, int middle, int stop)
          b[i] = (Item *)malloc(sizeof(Item));    
     }
 
-    
     for(i = 0; i < a_length; i++)
     {
         a[i]->word = array[start+i]->word;
@@ -288,8 +355,8 @@ void merge(Item **array, int start, int middle, int stop)
     
     for(i = 0; i < b_length; i++)
     {
-        b[i]->word =  array[middle+1+i]->word;
-        b[i]->weight =  array[middle+1+i]->weight;
+        b[i]->word = array[middle+1+i]->word;
+        b[i]->weight = array[middle+1+i]->weight;
     }
     
     b[b_length]->word = inf;
@@ -297,22 +364,46 @@ void merge(Item **array, int start, int middle, int stop)
     i = 0;
     j = 0;
     
-    for(int k = start; k <= stop; k++)
+    //0 to sort by words, 1 to sort numbers in descending order
+    if(sort_type == 0)
     {
-        //Word goes first condition
-        if(strcmp(a[i]->word, b[j]->word) <= 0)
-        {   
-            array[k]->word = a[i]->word;
-            array[k]->weight = a[i]->weight;
-            i++;
-        }
-        else
+        for(int k = start; k <= stop; k++)
         {
-            array[k]->word = b[j]->word;
-            array[k]->weight = b[j]->weight;
-            j++;
+            //printf("%s\n", array[k]->word);               
+            //Word goes first condition
+            if(strcmp(a[i]->word, b[j]->word) <= 0)
+            {   
+                array[k]->word = a[i]->word;
+                array[k]->weight = a[i]->weight;
+                i++;
+            }
+            else
+            {
+                array[k]->word = b[j]->word;
+                array[k]->weight = b[j]->weight;
+                j++;
+            }
+            //printf("%s\n", array[k]->word);   
+
         }
-        
+    }
+    else if(sort_type == 1)
+    {
+        for(int k = start; k <= stop; k++)
+        {
+            if(a[i]->weight >= b[j]->weight)
+            {   
+                array[k]->word = a[i]->word;
+                array[k]->weight = a[i]->weight;
+                i++;
+            }
+            else
+            {
+                array[k]->word = b[j]->word;
+                array[k]->weight = b[j]->weight;
+                j++;
+            }            
+        }        
     }
 
     //Free a

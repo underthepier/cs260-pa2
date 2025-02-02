@@ -27,9 +27,24 @@ int main(void)
   strncpy(query_compare, word2.word, query_len);
   query_compare[query_len] = '\0';
 
-  if(strcmp(query, query_compare) == 0)
-    printf("%s\n", query_compare);
-  else
-    printf("nope\n");
+  char *v = "é";
+  char *ve = "¶";
+  char *ver = "Â¶";
+  char *inf = "~~~~~";
+
+  int a[3] = {-61, -126, 0};
+
+  printf("%ld\n", strlen(ve));
+  printf("%d\n", ve[0]);
+
+  printf("%ld\n", strlen(ver));
+  printf("%d\n", ver[0]);
+
+  if((int)ver[0] == -61)
+    printf("yes\n");
+  
+
+
+
   
 }
